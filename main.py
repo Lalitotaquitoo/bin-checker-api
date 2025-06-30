@@ -9,11 +9,13 @@ API_KEY = os.getenv("API_KEY")
 
 app = FastAPI(title="BIN Checker API")
 
-# 2. Middleware para validar API Key (excepto en docs)
+# 2. Middleware para validar API Key (excepto en docs, redoc y openapi)
 @app.middleware("http")
 async def verify_api_key(request: Request, call_next):
-    # Permitir acceso libre a Swagger UI, Redoc y OpenAPI
-    if request.url.path in ["/docs", "/openapi.json", "/redoc"]:
+    # Permitir acceso libre a Swagger UI, Redoc y OpenAPI (incluyendo rutas con barra final o recursos estáticos)
+    if (request.url.path.startswith("/docs") or
+        request.url.path.startswith("/redoc") or
+        request.url.path.startswith("/openapi.json")):
         return await call_next(request)
 
     # Verificar la API key en encabezados
