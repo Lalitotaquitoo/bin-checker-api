@@ -7,9 +7,12 @@ from dotenv import load_dotenv
 load_dotenv()
 API_KEY = os.getenv("API_KEY", "").strip()
 
+if not API_KEY:
+    raise RuntimeError("API_KEY is not set in environment variables")
+
 app = FastAPI(
     title="BIN Checker API",
-    description="Lookup card scheme, type, issuing bank, country and prepaid status from the first 6 digits (BIN/IIN).",
+    description="Lookup card scheme, type, issuing bank, country and prepaid status from the first 6-8 digits (BIN/IIN).",
     version="1.0.0"
 )
 
@@ -32,7 +35,7 @@ async def health_check():
 # Main BIN lookup endpoint
 @app.get("/bin/{bin_number}", summary="Lookup BIN details", tags=["BIN"])
 async def lookup_bin(bin_number: str):
-    if not (bin_number.isdigit() and len(bin_number) => 8 and len(bin_number) =>6):
+    if not (bin_number.isdigit() and 6 <= len(bin_number) <= 8):
         raise HTTPException(status_code=400, detail="Invalid BIN format")
 
     url = f"https://lookup.binlist.net/{bin_number}"
