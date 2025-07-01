@@ -3,58 +3,53 @@ from fastapi.responses import JSONResponse
 import httpx, os
 from dotenv import load_dotenv
 
-# 1. Cargar API_KEY desde .env o entorno
+# Load API key
 load_dotenv()
 API_KEY = os.getenv("API_KEY", "").strip()
 
 app = FastAPI(
     title="BIN Checker API",
-    description="Consulta la marca, tipo, banco, país y si es prepaga a partir de los primeros 6 dígitos de una tarjeta (BIN/IIN).",
+    description="Lookup card scheme, type, issuing bank, country and prepaid status from the first 6 digits (BIN/IIN).",
     version="1.0.0"
 )
 
-# 2. Middleware para validar API Key (excepto en rutas públicas)
+# Middleware: allow public docs and health check, protect all other routes
 @app.middleware("http")
 async def verify_api_key(request: Request, call_next):
     public_paths = ["/", "/docs", "/redoc", "/openapi.json"]
-    if any(request.url.path.startswith(path) for path in public_paths):
+    if any(request.url.path.startswith(p) for p in public_paths):
         return await call_next(request)
 
     if request.headers.get("x-api-key") != API_KEY:
         return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
-
     return await call_next(request)
 
-# 3. Ruta de salud para Railway
-@app.get("/")
-async def root():
-    return {"mensaje": "La API de BIN Checker está viva 🚀"}
+# Health check
+@app.get("/", tags=["Health"])
+async def health_check():
+    return {"status": "alive"}
 
-# 4. Endpoint principal
-@app.get("/bin/{bin_number}", summary="Consultar información de BIN", tags=["BIN"])
-async def get_bin(bin_number: str):
-    # Validar formato del BIN
-    if not bin_number.isdigit() or len(bin_number) != 6:
-        raise HTTPException(status_code=400, detail="BIN inválido")
+# Main BIN lookup endpoint
+@app.get("/bin/{bin_number}", summary="Lookup BIN details", tags=["BIN"])
+async def lookup_bin(bin_number: str):
+    if not (bin_number.isdigit() and len(bin_number) == 6):
+        raise HTTPException(status_code=400, detail="Invalid BIN format")
 
-    # Consultar API pública de BINLIST
     url = f"https://lookup.binlist.net/{bin_number}"
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(url)
+            response = await client.get(url)
     except httpx.RequestError:
-        raise HTTPException(status_code=503, detail="Error al conectar con el proveedor externo")
+        raise HTTPException(status_code=503, detail="External service error")
 
-    if r.status_code != 200:
-        raise HTTPException(status_code=404, detail="BIN no encontrado")
+    if response.status_code != 200:
+        raise HTTPException(status_code=404, detail="BIN not found")
 
-    data = r.json()
-
-    # Devolver datos filtrados
+    data = response.json()
     return {
-        "marca": data.get("scheme"),
-        "tipo": data.get("type"),
-        "banco": data.get("bank", {}).get("name"),
-        "pais": data.get("country", {}).get("name"),
-        "prepaga": data.get("prepaid")
+        "scheme": data.get("scheme"),
+        "type": data.get("type"),
+        "bank": data.get("bank", {}).get("name"),
+        "country": data.get("country", {}).get("name"),
+        "prepaid": data.get("prepaid")
     }
