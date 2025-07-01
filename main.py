@@ -32,7 +32,7 @@ async def health_check():
 # Main BIN lookup endpoint
 @app.get("/bin/{bin_number}", summary="Lookup BIN details", tags=["BIN"])
 async def lookup_bin(bin_number: str):
-    if not (bin_number.isdigit() and len(bin_number) => 8 and len(bin_number) >=6):
+    if not (bin_number.isdigit() and len(bin_number) => 8 and len(bin_number) =>6):
         raise HTTPException(status_code=400, detail="Invalid BIN format")
 
     url = f"https://lookup.binlist.net/{bin_number}"
